@@ -4,6 +4,31 @@
   <img src="image.png" alt="Mantis image" width="30%" height="30%" style="border-radius: 12%">
 </p>
 
+<p align="center">
+  <a href="https://github.com/federicofantini/MANTIS/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/federicofantini/MANTIS?style=flat-square" alt="License">
+  </a>
+  <a href="https://github.com/federicofantini/MANTIS/stargazers">
+    <img src="https://img.shields.io/github/stars/federicofantini/MANTIS?style=flat-square" alt="Stars">
+  </a>
+  <a href="https://github.com/federicofantini/MANTIS/network/members">
+    <img src="https://img.shields.io/github/forks/federicofantini/MANTIS?style=flat-square" alt="Forks">
+  </a>
+  <a href="https://github.com/federicofantini/MANTIS/issues">
+    <img src="https://img.shields.io/github/issues/federicofantini/MANTIS?style=flat-square" alt="Open Issues">
+  </a>
+  <a href="https://github.com/federicofantini/MANTIS/commits/main">
+    <img src="https://img.shields.io/github/last-commit/federicofantini/MANTIS?style=flat-square" alt="Last Commit">
+  </a>
+  <a href="https://github.com/federicofantini/MANTIS/actions">
+    <img src="https://github.com/federicofantini/MANTIS/actions/workflows/main.yml/badge.svg" alt="Build Status">
+  </a>
+  <a href="https://github.com/federicofantini/MANTIS/releases">
+    <img src="https://img.shields.io/github/v/release/federicofantini/MANTIS?style=flat-square" alt="Latest Release">
+  </a>
+</p>
+
+
 ## Introduction
 MANTIS is a lightweight motion detection system designed for Raspberry Pi, aimed at providing real-time surveillance and alerting capabilities without giving up privacy. It uses OpenCV to detect movement through a connected camera and automatically captures images or video recordings when motion is detected. These alerts are then securely sent to a remote server using xmpp+omemo or matrix.org protocol, enabling E2EE and decentralized communication. The goal of MANTIS is to offer a simple, efficient, and **privacy-respecting** home or office security solution using open-source tools.
 
