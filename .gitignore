@@ -1,0 +1,8 @@
+.env
+venv
+__pycache__
+build
+*.egg-info
+.mypy_cache
+.ruff_cache
+.vscode

@@ -1,0 +1,2 @@
+slixmpp
+slixmpp-omemo

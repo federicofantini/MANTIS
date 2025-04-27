@@ -1,0 +1,6 @@
+av
+dotenv
+aiohttp
+opencv-python
+opencv-contrib-python
+Pillow
