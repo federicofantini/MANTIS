@@ -1,4 +1,4 @@
-name: Build and Publish Python Package to GitHub Releases
+name: Build/Publish Python Package Release
 
 on:
   push:
