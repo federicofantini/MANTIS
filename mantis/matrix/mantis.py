@@ -145,18 +145,18 @@ class Mantis:
             for room_id in self.my_rooms:
                 await self._send_message(room_id, "Mantis online 🟢")
         except OlmUnverifiedDeviceError as e:
-            if e.device.user_id == config["user_id"] and e.device.device_id != config["device_id"]:
-                if self.ask_if_primary_device(e.device.device_id):
-                    logger.info("This is your first run on this device, trust it and then run Mantis again.")
-                    logger.info("In Element, go to Settings > Security & Privacy > Manage Sessions, and verify the new session.")
-                    # Add a callback that will be executed on device events.
-                    self.client.add_to_device_callback(self._key_verification_cb, (KeyVerificationEvent, UnknownToDeviceEvent))
+            if e.device.user_id == config["user_id"]:
+                if e.device.device_id == config["device_id"]:
+                    self.client.verify_device(e.device) # I trust myself
                 else:
-                    logger.error("Please only run mantis on one device other than element.")
-                    sys.exit(1)
-            else:
-                self.client.verify_device(e.device)
-                logger.info("I trust myself!")
+                    if self.ask_if_primary_device(e.device.device_id):
+                        logger.info("This is your first run on this device, trust it and then run Mantis again.")
+                        logger.info("In Element, go to Settings > Security & Privacy > Manage Sessions, and verify the new session.")
+                        # Add a callback that will be executed on device events.
+                        self.client.add_to_device_callback(self._key_verification_cb, (KeyVerificationEvent, UnknownToDeviceEvent))
+                    else:
+                        logger.error("Please only run mantis on one device other than element.")
+                        sys.exit(1)
         else:
             # Add a callback that will be executed on room events.
             self.client.add_event_callback(self._invite_cb, InviteEvent)
