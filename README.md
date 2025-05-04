@@ -32,22 +32,61 @@
 ## Introduction
 MANTIS is a lightweight motion detection system designed for Raspberry Pi, aimed at providing real-time surveillance and alerting capabilities without giving up privacy. It uses OpenCV to detect movement through a connected camera and automatically captures images or video recordings when motion is detected. These alerts are then securely sent to a remote server using xmpp+omemo or matrix.org protocol, enabling E2EE and decentralized communication. The goal of MANTIS is to offer a simple, efficient, and **privacy-respecting** home or office security solution using open-source tools.
 
-## ENV
-- `mv .env.template .env` (and configure your accounts -> see the documentation)
+## Quickstart
+### Fix Raspi camera
+- fix `/boot/firmware/config.txt` (https://forums.raspberrypi.com/viewtopic.php?t=331441)
+  - uncommenting out `#auto_detect_camera=1`
+  - add `start_x=1`
+  - add `gpu_mem=128`
+### Setup the python environment
+- install system dependencies
+  - `sudo apt install libolm-dev libsodium-dev libxeddsa-dev libgl1`
+- setup venv and install mantis inside
+  - `sudo mkdir -p /opt/mantis/ && sudo chown -R $USER:$USER /opt/mantis && cd /opt/mantis/ && python3 -m venv venv && source venv/bin/activate`
+  - `python3 -m pip install https://github.com/federicofantini/MANTIS/releases/download/v1.0.1/mantis-0.2-py3-none-any.whl`
+  - `deactivate`
+- setup login and config data
+  - `wget https://raw.githubusercontent.com/federicofantini/MANTIS/refs/heads/main/.env.template && mv .env.template .env`
+    - (configure your accounts!!)
+- setup account avatar
+  - `wget https://raw.githubusercontent.com/federicofantini/MANTIS/refs/heads/main/image.png`
+    - (or any other image, as long as it has that name)
+### Setup the new user
+- `sudo useradd -r -s /usr/sbin/nologin -d /opt/mantis mantis`
+- `sudo usermod -aG video mantis`
+### Create `start.sh` script
+- `/opt/mantis/start.sh`
+  - ```bash
+    #!/bin/bash
+    source /opt/mantis/venv/bin/activate
+    python3 -m mantis.main
+    ```
+- `chmod +x /opt/mantis/start.sh`
+- `sudo chown -R mantis:mantis /opt/mantis`
+### First run
+- we need to trust the new device from element, follow the instructions provided by mantis
+  - `sudo -u mantis /opt/mantis/start.sh`
+### After the first run, create a systemd service
+- `/etc/systemd/system/mantis.service`
+  - ```
+    [Unit]
+    Description=MANTIS - motion detection system
+    After=network.target
 
-## Virtualenv
-- creation: `python3 -m venv venv`
-- activation: `source venv/bin/activate`
+    [Service]
+    Type=simple
+    User=mantis
+    WorkingDirectory=/opt/mantis/
+    ExecStart=/opt/mantis/start.sh
+    Restart=on-failure
+    Environment="PYTHONUNBUFFERED=1"
 
-## Requirements
-- `find requirements/ -name *.txt -exec pip3 install -r {} \;`
-  - `base.txt` contains all the necessary python packages to achieve motion detection, image manipulation and other basics stuff
-  - `xmpp.txt` contains all the necessary python packages to communicate with xmpp + e2e encryption
-  - `matrix.txt` contains all the necessary python packages to communicate with matrix + e2e encryption
-      - need to install also `sudo apt install libolm-dev`
-
-## Startup the project
-- `python -m mantis.main`
+    [Install]
+    WantedBy=multi-user.target
+    ```
+- `sudo systemctl daemon-reload`
+- `sudo systemctl enable mantis.service`
+- `sudo systemctl start mantis.service`
 
 ## Motion detection stuff (theory + examples)
 - [motion decetion stuff](Motion-detection.ipynb)
