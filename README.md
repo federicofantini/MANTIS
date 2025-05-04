@@ -43,7 +43,7 @@ MANTIS is a lightweight motion detection system designed for Raspberry Pi, aimed
   - `sudo apt install libolm-dev libsodium-dev libxeddsa-dev libgl1`
 - setup venv and install mantis inside
   - `sudo mkdir -p /opt/mantis/ && sudo chown -R $USER:$USER /opt/mantis && cd /opt/mantis/ && python3 -m venv venv && source venv/bin/activate`
-  - `python3 -m pip install https://github.com/federicofantini/MANTIS/releases/download/v1.0.1/mantis-0.2-py3-none-any.whl`
+  - `python3 -m pip install https://github.com/federicofantini/MANTIS/releases/download/v1.0.1/mantis-0.1-py3-none-any.whl`
   - `deactivate`
 - setup login and config data
   - `wget https://raw.githubusercontent.com/federicofantini/MANTIS/refs/heads/main/.env.template && mv .env.template .env`
