@@ -29,6 +29,7 @@ from nio import ( # type: ignore
     KeyVerificationCancel,
     LocalProtocolError,
     LoginResponse,
+    OlmUnverifiedDeviceError,
     ProfileSetAvatarError,
     RoomMessageText,
     ToDeviceError,
@@ -112,7 +113,7 @@ class Mantis:
         else:
             logger.warning("Cannot retrieve joined rooms...")
             self.my_rooms = []
-        logger.info(f"{self.my_rooms=}")
+        logger.debug(f"{self.my_rooms=}")
 
         # Keys stuff
         if self.client.should_upload_keys:
@@ -140,23 +141,47 @@ class Mantis:
                     logger.info(f"Trusting {device_id} from user {user_id}")
 
         # Send an "I'm alive" message to all allowed users
-        for room_id in self.my_rooms:
-            await self._send_message(room_id, "Mantis online 🟢")
+        try:
+            for room_id in self.my_rooms:
+                await self._send_message(room_id, "Mantis online 🟢")
+        except OlmUnverifiedDeviceError as e:
+            if e.device.user_id == config["user_id"] and e.device.device_id != config["device_id"]:
+                if self.ask_if_primary_device(e.device.device_id):
+                    logger.info("This is your first run on this device, trust it and then run Mantis again.")
+                    logger.info("In Element, go to Settings > Security & Privacy > Manage Sessions, and verify the new session.")
+                    # Add a callback that will be executed on device events.
+                    self.client.add_to_device_callback(self._key_verification_cb, (KeyVerificationEvent, UnknownToDeviceEvent))
+                else:
+                    logger.error("Please only run mantis on one device other than element.")
+                    sys.exit(1)
+            else:
+                self.client.verify_device(e.device)
+                logger.info("I trust myself!")
+        else:
+            # Add a callback that will be executed on room events.
+            self.client.add_event_callback(self._invite_cb, InviteEvent)
+            self.client.add_event_callback(self._message_cb, RoomMessageText)
 
-        # Add a callback that will be executed on device events.
-        self.client.add_to_device_callback(self._key_verification_cb, (KeyVerificationEvent, UnknownToDeviceEvent))
-
-        # Add a callback that will be executed on room events.
-        self.client.add_event_callback(self._invite_cb, InviteEvent)
-        self.client.add_event_callback(self._message_cb, RoomMessageText)
-
-        # Arm the motion detection alarm system
-        self.alarm_system = AlarmSystem(self)
-        self.alarm_system.start()
-        self.alarm_system.add_task("alarm_system", enable_alarm_system=self.alarm_system_enabled)
+            # Arm the motion detection alarm system
+            self.alarm_system = AlarmSystem(self)
+            self.alarm_system.start()
+            self.alarm_system.add_task("alarm_system", enable_alarm_system=self.alarm_system_enabled)
 
         # Sync forever
         await self.client.sync_forever(timeout=30000, full_state=True)
+
+    # Just a while true of the same question
+    def ask_if_primary_device(self, device_id: str) -> bool:
+        while True:
+            resp = input(f"Is this your primary device (device_id: {device_id})? [Y/N]: ").strip().lower()
+            if resp == 'y':
+                logger.info("Marked as primary device.")
+                return True
+            elif resp == 'n':
+                logger.info("Not marked as primary.")
+                return False
+            else:
+                logger.error("Please enter Y or N.")
 
     # Writes the required login details to disk so we can log in later without
     def _write_details_to_disk(self, resp: LoginResponse, homeserver: str) -> None:
@@ -333,7 +358,7 @@ class Mantis:
                     )
                     resp = await client.to_device(done_message, sas.transaction_id)
                     if isinstance(resp, ToDeviceError):
-                        client.log.error(f"'done' failed with {resp}")
+                        logger.error(f"'done' failed with {resp}")
 
                 elif yn.lower() == "n":  # no, don't match, reject
                     logger.error(
@@ -399,8 +424,7 @@ class Mantis:
                 logger.info(
                     "Emoji verification was successful!\n"
                     "Hit Control-C to stop the program or "
-                    "initiate another Emoji verification from "
-                    "another device or room."
+                    "initiate again mantis."
                 )
             else:
                 logger.error(
@@ -524,9 +548,11 @@ class Mantis:
         )
 
         if (isinstance(resp, UploadResponse)):
-            logger.info(f"Thumbnail successfully uploaded to server. Response: {resp}")
+            logger.info("Thumbnail successfully uploaded to server.")
+            logger.debug(f"Response: {resp}")
         else:
-            logger.error(f"Mantis failed to upload the thumbnail. Response: {resp}")
+            logger.error("Mantis failed to upload the thumbnail.")
+            logger.debug(f"Response: {resp}")
 
         thumbnail_url = resp.content_uri
 
@@ -540,9 +566,11 @@ class Mantis:
         )
 
         if (isinstance(resp, UploadResponse)):
-            logger.info(f"Image successfully uploaded to server. Response: {resp}")
+            logger.info("Image successfully uploaded to server.")
+            logger.debug(f"Response: {resp}")
         else:
-            logger.error(f"Mantis failed to upload the image. Response: {resp}")
+            logger.error("Mantis failed to upload the image.")
+            logger.debug(f"Response: {resp}")
 
         image_url = resp.content_uri
 
@@ -615,9 +643,11 @@ class Mantis:
         )
 
         if (isinstance(resp, UploadResponse)):
-            logger.info(f"Thumbnail successfully uploaded to server. Response: {resp}")
+            logger.info("Thumbnail successfully uploaded to server.")
+            logger.debug(f"Response: {resp}")
         else:
-            logger.error(f"Mantis failed to upload the thumbnail. Response: {resp}")
+            logger.error("Mantis failed to upload the thumbnail.")
+            logger.debug(f"Response: {resp}")
 
         thumbnail_url = resp.content_uri
 
@@ -632,9 +662,11 @@ class Mantis:
         )
         
         if (isinstance(resp, UploadResponse)):
-            logger.info(f"Video successfully uploaded to server. Response: {resp}")
+            logger.info("Video successfully uploaded to server.")
+            logger.debug(f"Response: {resp}")
         else:
-            logger.error(f"Mantis failed to upload the video. Response: {resp}")
+            logger.error("Mantis failed to upload the video.")
+            logger.debug(f"Response: {resp}")
 
         video_url = resp.content_uri
 

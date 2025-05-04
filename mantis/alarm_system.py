@@ -16,6 +16,8 @@ import cv2.bgsegm
 import threading
 from io import BytesIO
 from typing import Callable
+from fractions import Fraction
+from datetime import datetime, timedelta
 
 
 class Task:
@@ -25,11 +27,10 @@ class Task:
 
 # Running in a dedicated thread
 class AlarmSystem(threading.Thread):
-    def __init__(self, mantis, alarm_capture_seconds=20, background_ratio=0.90):
+    def __init__(self, mantis, background_ratio=0.85):
         super().__init__(name="AlarmSystemThread")
 
         self.mantis = mantis
-        self.alarm_capture_seconds = alarm_capture_seconds
         self.background_ratio = background_ratio
 
         self.tasks = []
@@ -42,17 +43,22 @@ class AlarmSystem(threading.Thread):
         self.capture = False
         self.stabilized = False
         self.init_camera = False
+        self.backoff_index = 0
+        self.last_alarm = datetime.now()
     
     # Setup camera, measure real FPS, configure background subtraction
     def _init_camera(self):
         if not hasattr(self, "cap") or hasattr(self, "cap") and not self.cap.isOpened():
             self.cap = cv2.VideoCapture(0)
+            # Some USB webcams (like mine XD) return linear JPEG buffer unless FOURCC is explicitly set
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+            self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
         
         if not self.cap.isOpened():
             logger.error("Cannot open camera")
 
-        # Dynamic fps measure instead of int(self.cap.get(cv2.CAP_PROP_FPS))
-        if not hasattr(self, "fps"):
+        # Simulate real fps measure
+        if not hasattr(self, "real_fps"):
             frame_counter = 0
             measure_frames = 200
             start_time = time.perf_counter()
@@ -63,6 +69,7 @@ class AlarmSystem(threading.Thread):
                 frame_counter += 1
 
                 # Simulate the workload
+                time.sleep(0.02) # threading and other stuff
                 cv2.GaussianBlur(frame, (5, 5), 0)  # pre-processing
                 foreground_mask = cv2.medianBlur(frame, 5) # foreground mask
                 foreground_mask = cv2.erode(foreground_mask, np.ones((5, 5), np.uint8), iterations=2) # foreground mask
@@ -72,13 +79,13 @@ class AlarmSystem(threading.Thread):
 
             # Real fps
             elapsed = end_time - start_time
-            fps_reale = frame_counter / elapsed
-            print(f"Measured real FPS: {fps_reale:.2f}")
-            self.fps = int(fps_reale)
+            fps_real = frame_counter / elapsed
+            logger.info(f"Measured real FPS: {fps_real:.2f}")
+            self.real_fps = int(fps_real)
         
         self.width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.threshold = self.fps * 1.5 # We want an alarm if there has been a movement of at least 1.5s
+        self.threshold = self.real_fps * 2 # We want an alarm if there has been a movement of at least 2s
         # Detect motion via BackgroundSubtractorCNT
         self.backgroundDetector = cv2.bgsegm.createBackgroundSubtractorCNT(
             minPixelStability=self.fps,
@@ -96,7 +103,7 @@ class AlarmSystem(threading.Thread):
 
     # Queue a task: enable alarm / take picture / record video
     def add_task(self, task: str = "alarm_system", enable_alarm_system: bool = True, record_video_duration: int = 10) -> None:
-        logger.info(f"add_task task={task} enable_alarm_system={enable_alarm_system} record_video_duration={record_video_duration}")
+        logger.debug(f"add_task task={task} enable_alarm_system={enable_alarm_system} record_video_duration={record_video_duration}")
 
         match task:
             case "alarm_system":
@@ -115,7 +122,7 @@ class AlarmSystem(threading.Thread):
                 pass
 
         if self.tasks or self.enable_alarm_system or self.record_video > 0 or self.take_picture:
-            logger.info("add_task: notify")
+            logger.debug("add_task: notify")
             with self.condition_lock:
                 self.condition_lock.notify()
 
@@ -131,7 +138,6 @@ class AlarmSystem(threading.Thread):
             pass
 
         c = 0
-        next_frame_time = time.perf_counter()
 
         while True:
 
@@ -216,16 +222,22 @@ class AlarmSystem(threading.Thread):
                 if self.record_video > 0:
                     save_video_and_send = self.save_video(frame, self.record_video)
                 elif self.enable_alarm_system:
-                    save_video_and_send = self.save_video(frame, self.alarm_capture_seconds, is_alarm=True)
-                    logger.info("ALARM: something is moving!!!")
-
-            # Sleep until the scheduled frame time + update time to maintain sync
-            time.sleep(max(0, next_frame_time - time.perf_counter()))
-            next_frame_time += 1 / self.fps
+                    capture_time = self.capture_time_exponential_backoff()
+                    save_video_and_send = self.save_video(frame, capture_time, is_alarm=True)
+                    logger.info(f"ALARM: something is moving!!! Recording {capture_time}s")
 
         if hasattr(self, "cap"):
             self.cap.release()
     
+    def capture_time_exponential_backoff(self):
+        BACKOFF_SEQUENCE = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120]
+        if datetime.now() - self.last_alarm > timedelta(minutes=10):
+            self.backoff_index = 0
+        else:
+            self.backoff_index += 1
+        return BACKOFF_SEQUENCE[min(len(BACKOFF_SEQUENCE)-1, self.backoff_index)]
+
+
     # Capture a single frame and upload using Mantis.upload_image()
     def send_picture(self, frame: np.ndarray) -> None:
         self.mantis.upload_image(
@@ -241,7 +253,8 @@ class AlarmSystem(threading.Thread):
         thumbnail_frame = None
         in_mem_file = BytesIO()
         output = av.open(in_mem_file, 'w', format="mp4")
-        stream = output.add_stream('h264', rate=self.fps)
+        stream = output.add_stream('h264', rate=self.real_fps)
+        stream.time_base = Fraction(1, self.real_fps)
         stream.width = self.width
         stream.height = self.height
         stream.pix_fmt = 'yuv420p'
@@ -257,7 +270,7 @@ class AlarmSystem(threading.Thread):
             nonlocal current_frame
             nonlocal thumbnail_frame
             
-            if current_frame > capture_seconds * self.fps:
+            if current_frame > capture_seconds * self.real_fps:
                 output.mux(stream.encode(None)) # flush
                 output.close()
 
@@ -269,6 +282,8 @@ class AlarmSystem(threading.Thread):
                     width=self.width,
                     is_alarm=is_alarm,
                 )
+
+                self.last_alarm = datetime.now()
 
                 self.capture = False
                 if self.record_video > 0:
