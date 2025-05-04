@@ -21,7 +21,7 @@
     <img src="https://img.shields.io/github/last-commit/federicofantini/MANTIS?style=flat-square" alt="Last Commit">
   </a>
   <a href="https://github.com/federicofantini/MANTIS/actions">
-    <img src="https://github.com/federicofantini/MANTIS/actions/workflows/main.yml/badge.svg" alt="Build Status">
+    <img src="https://github.com/federicofantini/MANTIS/actions/workflows/publish-release.yml/badge.svg" alt="Build Status">
   </a>
   <a href="https://github.com/federicofantini/MANTIS/releases">
     <img src="https://img.shields.io/github/v/release/federicofantini/MANTIS?style=flat-square" alt="Latest Release">
